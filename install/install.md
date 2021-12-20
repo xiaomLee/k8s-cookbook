@@ -250,6 +250,14 @@ sysctl --system
 sysctl -n net.bridge.bridge-nf-call-iptables
 sysctl -n net.bridge.bridge-nf-call-ip6tables
 
+# this will turn things back on a live server
+sysctl -w net.ipv4.ip_forward=1
+# on Centos this will make the setting apply after reboot
+echo net.ipv4.ip_forward=1 >> /etc/sysconf.d/10-ipv4-forwarding-on.conf
+
+# 验证并生效
+sysctl -p
+
 ```
 #### 6.4 配置 docker
 ```bash
