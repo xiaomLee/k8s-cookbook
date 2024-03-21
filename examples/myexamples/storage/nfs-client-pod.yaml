@@ -1,0 +1,34 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: pvc-with-nfs-client
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Mi
+  storageClassName: nfs-client
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-nfs-client
+  labels:
+    app: pod-nfs-client
+spec:
+  volumes:
+    - name: pvc-with-nfs-client
+      persistentVolumeClaim:
+        claimName: pvc-with-nfs-client
+  containers:
+    - name: pod-nfs-client
+      image: busybox
+      imagePullPolicy: IfNotPresent
+      volumeMounts:
+        - mountPath: "/root/nfs-pv"
+          name: pvc-with-nfs-client
+      command: [ "sh", "-c", "while [ true ]; do date; echo echo 'Hello';  sleep 10; done | tee -a /root/nfs-pv/pvc-with-nfs-client.txt" ]
+  restartPolicy: Always

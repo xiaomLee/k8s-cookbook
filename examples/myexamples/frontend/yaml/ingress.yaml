@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: frontend-ingress
+  namespace: default
+spec:
+  ingressClassName: cloudflare-tunnel
+  rules:
+  - host: frontend.sjbl.club
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service: 
+            name: frontend-svc
+            port: 
+              number: 80

@@ -1,0 +1,157 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-conf
+  namespace: default
+data:
+  nginx.conf: |-
+    user  nginx;
+    worker_processes  1;
+
+    error_log  /var/log/nginx/error.log warn;
+    pid        /var/run/nginx.pid;
+
+    events {
+        worker_connections  4096;
+    }
+
+    http {
+        include       /etc/nginx/mime.types;
+        default_type  application/octet-stream;
+
+        log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                          '$status $body_bytes_sent "$http_referer" '
+                          '"$http_user_agent" "$http_x_forwarded_for"';
+
+        access_log  /var/log/nginx/access.log  main;
+
+        sendfile        on;
+        #tcp_nopush     on;
+
+        keepalive_timeout  65;
+
+        #gzip  on;
+
+        include /etc/nginx/conf.d/*.conf;
+    }
+  server.conf: |-
+    server {
+      listen       80;
+      server_name  localhost;
+
+      #charset koi8-r;
+      #access_log  /var/log/nginx/log/host.access.log  main;
+
+      location / {
+          root   /usr/share/nginx/html;
+          index  index.html index.htm;
+      }
+
+      #error_page  404              /404.html;
+
+      # redirect server error pages to the static page /50x.html
+      #
+      error_page   500 502 503 504  /50x.html;
+      location = /50x.html {
+          root   /usr/share/nginx/html;
+      }
+    }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      volumes:
+        - configMap:
+            name: frontend-conf
+            items:
+              - key: nginx.conf
+                path: nginx.conf
+              - key: server.conf
+                path: conf.d/server.conf
+          name: nginx-conf-volume
+        - emptyDir: {}
+          name: html-volume
+      containers:
+        - name: nginx
+          image: nginx:stable
+          imagePullPolicy: IfNotPresent
+          # command:
+          #   - ./nginx
+          # args:
+          #   - -c /etc/nginx/nginx.conf
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 3
+            periodSeconds: 2
+            successThreshold: 1
+            timeoutSeconds: 1
+            tcpSocket:
+              port: 80
+          volumeMounts:
+            - mountPath: /etc/nginx/nginx.conf
+              name: nginx-conf-volume
+              subPath: nginx.conf
+            - mountPath: /etc/nginx/conf.d
+              name: nginx-conf-volume
+              subPath: conf.d
+            - mountPath: /usr/share/nginx
+              name: html-volume
+      initContainers: # 初始化执行容器, 执行后退出. 将静态文件拷贝到挂载目录, 与nginx-container实现共享.
+        - name: html
+          image: 850278995/frontend:latest
+          imagePullPolicy: Always
+          volumeMounts:
+            - mountPath: /share/html
+              name: html-volume
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-svc
+  namespace: default
+spec:
+  type: ClusterIP
+  selector:
+    app: frontend
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 80
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: frontend-ingress
+  namespace: default
+spec:
+  ingressClassName: cloudflare-tunnel
+  rules:
+    - host: frontend.sjbl.club
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-svc
+                port:
+                  number: 80

@@ -1,0 +1,60 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs-storage-class
+provisioner: kubernetes.io/no-provisioner
+#volumeBindingMode: WaitForFirstConsumer
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-with-nfs-storage-class
+spec:
+  capacity:
+    storage: 1Gi
+  # volumeMode field requires BlockVolume Alpha feature gate to be enabled.
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nfs-storage-class
+  nfs:
+    path: /mnt/nfs # nfs exported path
+    server: 120.79.152.224 # nfs server
+
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: pvc-with-nfs-storage-class
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: nfs-storage-class
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-nfs-storage-class
+  labels:
+    app: pod-nfs-storage-class
+spec:
+  volumes:
+    - name: nfs-pvc-test
+      persistentVolumeClaim:
+        claimName: pvc-with-nfs-storage-class
+  containers:
+    - name: pod-nfs-storage-class
+      image: busybox
+      imagePullPolicy: IfNotPresent
+      volumeMounts:
+        - mountPath: "/root/nfs-pv"
+          name: nfs-pvc-test
+      command: [ "sh", "-c", "while [ true ]; do date; echo echo 'Hello';  sleep 10; done | tee -a /root/nfs-pv/log.txt" ]
+  restartPolicy: Always

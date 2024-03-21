@@ -1,0 +1,3 @@
+[submodule "examples/official-examples"]
+	path = examples/official-examples
+	url = git@github.com:kubernetes/examples.git

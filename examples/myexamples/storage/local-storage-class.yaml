@@ -1,0 +1,68 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-storage-class
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-with-local-storage-class
+spec:
+  capacity:
+    storage: 1Gi
+  # volumeMode field requires BlockVolume Alpha feature gate to be enabled.
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage-class
+  local:
+    path: /root/k8s-local-storage
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - aliyun-master-120-79-152-224
+
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: pvc-with-local-storage-class
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: local-storage-class
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-local-storage-class
+  labels:
+    app: pod-local-storage-class
+spec:
+  volumes:
+    - name: local-pvc-test
+      persistentVolumeClaim:
+        claimName: pvc-with-local-storage-class
+  containers:
+    - name: pod-local-storage-class
+      image: busybox
+      imagePullPolicy: IfNotPresent
+      volumeMounts:
+        - mountPath: "/root/local-pv"
+          name: local-pvc-test
+      command: [ "sh", "-c", "while [ true ]; do date; echo echo 'Hello';  sleep 10; done | tee -a /root/local-pv/log.txt" ]
+  restartPolicy: Always
+
